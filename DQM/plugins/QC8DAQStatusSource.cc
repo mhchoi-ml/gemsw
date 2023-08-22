@@ -264,7 +264,8 @@ void QC8DAQStatusSource::analyze(edm::Event const &event, edm::EventSetup const 
 
     const GEMOHStatusCollection::Range &range = (*ohIt).second;
     for (auto OHStatus = range.first; OHStatus != range.second; ++OHStatus) {
-      int chamberType = OHStatus->chamberType();
+      // int chamberType = OHStatus->chamberType();
+      int chamberType = 0;
       GEMChMap::chamDC dc;
       dc.detId = gid.rawId() ;
       dc.chamberType = chamberType;
@@ -345,7 +346,8 @@ void QC8DAQStatusSource::analyze(edm::Event const &event, edm::EventSetup const 
 
     const GEMVFATStatusCollection::Range &range = (*vfatIt).second;
     for (auto vfatStat = range.first; vfatStat != range.second; ++vfatStat) {
-      int chamberType = vfatStat->chamberType();
+      // int chamberType = vfatStat->chamberType();
+      int chamberType = 0;
       GEMChMap::chamDC dc;
       dc.detId = gid.rawId();
       dc.chamberType = chamberType;
