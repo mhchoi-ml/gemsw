@@ -1,5 +1,5 @@
-#ifndef GEMHitAnalyzer_RecHitForReal_H
-#define GEMHitAnalyzer_RecHitForReal_H
+#ifndef GEMHitAnalyzer_HitForReal_H
+#define GEMHitAnalyzer_HitForReal_H
 // cd /cms/ldap_home/iawatson/scratch/GEM/CMSSW_10_1_5/src/ && eval `scramv1 runtime -sh` && eval `scramv1 runtime -sh` && scram b -j 10
 // cd ../../.. && source /cvmfs/cms.cern.ch/cmsset_default.sh && eval `scramv1 runtime -sh` && eval `scramv1 runtime -sh` && scram b -j 10
 // system include files
@@ -64,10 +64,10 @@ typedef tuple<int> Key1;
 // typedef tuple<int, int> Key2;
 // typedef tuple<int, int, int> Key3;
 
-class GEMHitAnalyzer_RecHitForReal : public edm::one::EDAnalyzer<edm::one::WatchRuns> {  
+class GEMHitAnalyzer_HitForReal : public edm::one::EDAnalyzer<edm::one::WatchRuns> {  
 public:
-  explicit GEMHitAnalyzer_RecHitForReal(const edm::ParameterSet&);
-  ~GEMHitAnalyzer_RecHitForReal();
+  explicit GEMHitAnalyzer_HitForReal(const edm::ParameterSet&);
+  ~GEMHitAnalyzer_HitForReal();
 
 private:
   bool maskChamberWithError(const GEMDetId& chamber_id, const edm::Handle<GEMVFATStatusCollection>, const edm::Handle<GEMOHStatusCollection>);
@@ -108,7 +108,7 @@ private:
   int b_RecHitCls;
 };
 
-GEMHitAnalyzer_RecHitForReal::GEMHitAnalyzer_RecHitForReal(const edm::ParameterSet& iConfig)
+GEMHitAnalyzer_HitForReal::GEMHitAnalyzer_HitForReal(const edm::ParameterSet& iConfig)
   : hGEMGeom_(esConsumes()),
     hGEMGeomBeginRun_(esConsumes<edm::Transition::BeginRun>())
 {
@@ -146,9 +146,9 @@ GEMHitAnalyzer_RecHitForReal::GEMHitAnalyzer_RecHitForReal(const edm::ParameterS
 #endif
 
 
-GEMHitAnalyzer_RecHitForReal::~GEMHitAnalyzer_RecHitForReal(){}
+GEMHitAnalyzer_HitForReal::~GEMHitAnalyzer_HitForReal(){}
 
-bool GEMHitAnalyzer_RecHitForReal::maskChamberWithError(const GEMDetId& chamber_id,
+bool GEMHitAnalyzer_HitForReal::maskChamberWithError(const GEMDetId& chamber_id,
                                          const edm::Handle<GEMVFATStatusCollection> vfat_status_collection,
                                          const edm::Handle<GEMOHStatusCollection> oh_status_collection) {
   const bool mask = true;
@@ -180,7 +180,7 @@ bool GEMHitAnalyzer_RecHitForReal::maskChamberWithError(const GEMDetId& chamber_
 }
 
 void
-GEMHitAnalyzer_RecHitForReal::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
+GEMHitAnalyzer_HitForReal::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
   /* GEM Geometry */
   edm::ESHandle<GEMGeometry> hGEMGeom;
@@ -225,50 +225,50 @@ GEMHitAnalyzer_RecHitForReal::analyze(const edm::Event& iEvent, const edm::Event
     }
   }
 
-  float RecEvNrechits = 0;
-  float RecEvSumCls = 0;
-  for (const GEMRegion* Region : GEMGeometry_->regions()){
-      for (const GEMStation* Station : Region->stations()){
-        int st = Station->station();
-        if (st != 1) continue;
-        for (const GEMRing* Ring : Station->rings()){
-          for (const GEMSuperChamber* SuperChamber : Ring->superChambers()){
-            for (const GEMChamber* Chamber : SuperChamber->chambers()){
-              GEMDetId chId = Chamber->id();
-              if (maskChamberWithError(chId, vfat_status_collection, oh_status_collection)) continue;
+  // float RecEvNrechits = 0;
+  // float RecEvSumCls = 0;
+  // for (const GEMRegion* Region : GEMGeometry_->regions()){
+  //     for (const GEMStation* Station : Region->stations()){
+  //       int st = Station->station();
+  //       if (st != 1) continue;
+  //       for (const GEMRing* Ring : Station->rings()){
+  //         for (const GEMSuperChamber* SuperChamber : Ring->superChambers()){
+  //           for (const GEMChamber* Chamber : SuperChamber->chambers()){
+  //             GEMDetId chId = Chamber->id();
+  //             if (maskChamberWithError(chId, vfat_status_collection, oh_status_collection)) continue;
 
-              for (const GEMEtaPartition* etaPart : Chamber->etaPartitions()){
-                GEMDetId ieId = etaPart->id();
-                auto RecHitRange = gemRecHits->get(ieId);
+  //             for (const GEMEtaPartition* etaPart : Chamber->etaPartitions()){
+  //               GEMDetId ieId = etaPart->id();
+  //               auto RecHitRange = gemRecHits->get(ieId);
 
-                float RecIeNrechits = 0;
-                float RecIeSumCls = 0;
-                for (auto rechit = RecHitRange.first; rechit != RecHitRange.second; ++rechit) {
-                  int firstStrip = rechit->firstClusterStrip();
-                  int clsSize = rechit->clusterSize();
+  //               float RecIeNrechits = 0;
+  //               float RecIeSumCls = 0;
+  //               for (auto rechit = RecHitRange.first; rechit != RecHitRange.second; ++rechit) {
+  //                 int firstStrip = rechit->firstClusterStrip();
+  //                 int clsSize = rechit->clusterSize();
 
-                  RecIeNrechits++;
-                  RecIeSumCls += clsSize;
+  //                 RecIeNrechits++;
+  //                 RecIeSumCls += clsSize;
 
-                  RecEvNrechits++;
-                  RecEvSumCls += clsSize;
-                }
-                if (RecIeNrechits != 0){
-                  b_RecIeNrechit = RecIeNrechits;
-                  b_RecIeAvgCls = RecIeSumCls/RecIeNrechits;
-                  t_RecIeta->Fill();
-                }
-              } // eta partition loop
-            } // chamber loop
-          } // super chamber loop
-        } // ring loop
-      } // station loop
-  } // region loop
-  if (RecEvNrechits != 0){
-    b_RecEvNrechit = RecEvNrechits;
-    b_RecEvAvgCls = RecEvSumCls/RecEvNrechits;
-    t_RecEvent->Fill();
-  }
+  //                 RecEvNrechits++;
+  //                 RecEvSumCls += clsSize;
+  //               }
+  //               if (RecIeNrechits != 0){
+  //                 b_RecIeNrechit = RecIeNrechits;
+  //                 b_RecIeAvgCls = RecIeSumCls/RecIeNrechits;
+  //                 t_RecIeta->Fill();
+  //               }
+  //             } // eta partition loop
+  //           } // chamber loop
+  //         } // super chamber loop
+  //       } // ring loop
+  //     } // station loop
+  // } // region loop
+  // if (RecEvNrechits != 0){
+  //   b_RecEvNrechit = RecEvNrechits;
+  //   b_RecEvAvgCls = RecEvSumCls/RecEvNrechits;
+  //   t_RecEvent->Fill();
+  // }
 
   for (const GEMRegion* Region : GEMGeometry_->regions()){
       int re = Region->region();
@@ -298,7 +298,7 @@ GEMHitAnalyzer_RecHitForReal::analyze(const edm::Event& iEvent, const edm::Event
                   b_RecHitCh = ch;
                   b_RecHitIe = ie;
                   b_RecHitCls = clsSize;
-                  b_RecHitEvNrechit = RecEvNrechits;
+                  // b_RecHitEvNrechit = RecEvNrechits;
                   t_RecHit->Fill();
                 }
 
@@ -312,10 +312,10 @@ GEMHitAnalyzer_RecHitForReal::analyze(const edm::Event& iEvent, const edm::Event
   h_nEvents->Fill(1);
 }
 
-void GEMHitAnalyzer_RecHitForReal::beginJob(){}
-void GEMHitAnalyzer_RecHitForReal::endJob(){}
+void GEMHitAnalyzer_HitForReal::beginJob(){}
+void GEMHitAnalyzer_HitForReal::endJob(){}
 
-void GEMHitAnalyzer_RecHitForReal::beginRun(const edm::Run& run, const edm::EventSetup& iSetup) { 
+void GEMHitAnalyzer_HitForReal::beginRun(const edm::Run& run, const edm::EventSetup& iSetup) { 
   /* GEM Geometry */
   edm::ESHandle<GEMGeometry> hGEMGeom;
   hGEMGeom = iSetup.getHandle(hGEMGeomBeginRun_);
@@ -326,8 +326,8 @@ void GEMHitAnalyzer_RecHitForReal::beginRun(const edm::Run& run, const edm::Even
   h_nEvents = fs->make<TH1I>("nEvents", "The number of events", 2, 0, 2);
 
 }
-void GEMHitAnalyzer_RecHitForReal::endRun(edm::Run const&, edm::EventSetup const&){
+void GEMHitAnalyzer_HitForReal::endRun(edm::Run const&, edm::EventSetup const&){
 }
                    
 //define this as a plug-in
-DEFINE_FWK_MODULE(GEMHitAnalyzer_RecHitForReal);
+DEFINE_FWK_MODULE(GEMHitAnalyzer_HitForReal);

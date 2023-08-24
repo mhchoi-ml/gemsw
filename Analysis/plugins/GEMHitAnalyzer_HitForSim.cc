@@ -1,5 +1,5 @@
-#ifndef GEMHitAnalyzer_RecHitForSim_H
-#define GEMHitAnalyzer_RecHitForSim_H
+#ifndef GEMHitAnalyzer_HitForSim_H
+#define GEMHitAnalyzer_HitForSim_H
 // cd /cms/ldap_home/iawatson/scratch/GEM/CMSSW_10_1_5/src/ && eval `scramv1 runtime -sh` && eval `scramv1 runtime -sh` && scram b -j 10
 // cd ../../.. && source /cvmfs/cms.cern.ch/cmsset_default.sh && eval `scramv1 runtime -sh` && eval `scramv1 runtime -sh` && scram b -j 10
 // system include files
@@ -7,6 +7,8 @@
 #include <cmath>
 #include <iostream>
 #include <map>
+#include <algorithm>
+#include <typeinfo>
 
 // user include files
 #include "FWCore/Framework/interface/Frameworkfwd.h"
@@ -28,6 +30,7 @@
 #include "DataFormats/GEMRecHit/interface/GEMSegmentCollection.h"
 #include "SimDataFormats/TrackingHit/interface/PSimHitContainer.h"
 #include "SimDataFormats/Track/interface/SimTrackContainer.h"
+#include "SimDataFormats/Vertex/interface/SimVertexContainer.h"
 #include "DataFormats/MuonDetId/interface/GEMDetId.h"
 #include "Geometry/GEMGeometry/interface/GEMGeometry.h"
 #include "Geometry/GEMGeometry/interface/GEMEtaPartition.h"
@@ -61,12 +64,14 @@ typedef tuple<int> Key1;
 // typedef tuple<int, int> Key2;
 // typedef tuple<int, int, int> Key3;
 
-class GEMHitAnalyzer_RecHitForSim : public edm::one::EDAnalyzer<edm::one::WatchRuns> {  
+class GEMHitAnalyzer_HitForSim : public edm::one::EDAnalyzer<edm::one::WatchRuns> {  
 public:
-  explicit GEMHitAnalyzer_RecHitForSim(const edm::ParameterSet&);
-  ~GEMHitAnalyzer_RecHitForSim();
+  explicit GEMHitAnalyzer_HitForSim(const edm::ParameterSet&);
+  ~GEMHitAnalyzer_HitForSim();
 
 private:
+  int track2vertex(const edm::Handle<edm::SimTrackContainer>, int);
+  int vertex2parent(const edm::Handle<edm::SimVertexContainer>, int);
   virtual void analyze(const edm::Event&, const edm::EventSetup&);
   virtual void beginJob() override;
   virtual void endJob() override;
@@ -79,7 +84,8 @@ private:
   // edm::EDGetTokenT<GEMDigiCollection> gemDigis_;
   edm::EDGetTokenT<GEMRecHitCollection> gemRecHits_;
   edm::EDGetTokenT<edm::PSimHitContainer> gemSimHits_;
-  // edm::EDGetTokenT<edm::SimTrackContainer> gemSimTrack_;
+  edm::EDGetTokenT<edm::SimTrackContainer> gemSimTrack_;
+  edm::EDGetTokenT<edm::SimVertexContainer> gemSimVertex_;
   edm::ESGetToken<GEMGeometry, MuonGeometryRecord> hGEMGeom_; 
   edm::ESGetToken<GEMGeometry, MuonGeometryRecord> hGEMGeomBeginRun_;
 
@@ -107,14 +113,15 @@ private:
   float b_SimHitCls, b_SimHitElosscut;
 };
 
-GEMHitAnalyzer_RecHitForSim::GEMHitAnalyzer_RecHitForSim(const edm::ParameterSet& iConfig)
+GEMHitAnalyzer_HitForSim::GEMHitAnalyzer_HitForSim(const edm::ParameterSet& iConfig)
   : hGEMGeom_(esConsumes()),
     hGEMGeomBeginRun_(esConsumes<edm::Transition::BeginRun>())
 {
   // gemDigis_ = consumes<GEMDigiCollection>(iConfig.getParameter<edm::InputTag>("gemDigiLabel"));
   gemRecHits_ = consumes<GEMRecHitCollection>(iConfig.getParameter<edm::InputTag>("gemRecHitLabel"));
   gemSimHits_ = consumes<edm::PSimHitContainer>(iConfig.getParameter<edm::InputTag>("gemSimHitLabel"));
-  // gemSimTrack_ = consumes<edm::SimTrackContainer>(iConfig.getParameter<edm::InputTag>("gemSimTrackLabel"));
+  gemSimTrack_ = consumes<edm::SimTrackContainer>(iConfig.getParameter<edm::InputTag>("gemSimTrackLabel"));
+  gemSimVertex_ = consumes<edm::SimVertexContainer>(iConfig.getParameter<edm::InputTag>("gemSimVertexLabel"));
 
 //  hGEMGeomBegin_ = esConsumes<GEMGeometry, MuonGeometryRecord>(); 
 //  hGEMGeom_ = esConsumes<GEMGeometry, MuonGeometryRecord>();
@@ -156,10 +163,33 @@ GEMHitAnalyzer_RecHitForSim::GEMHitAnalyzer_RecHitForSim(const edm::ParameterSet
 #endif
 
 
-GEMHitAnalyzer_RecHitForSim::~GEMHitAnalyzer_RecHitForSim(){}
+GEMHitAnalyzer_HitForSim::~GEMHitAnalyzer_HitForSim(){}
+
+int GEMHitAnalyzer_HitForSim::track2vertex(const edm::Handle<edm::SimTrackContainer> gemSimTrack,
+                                                int trkid) {
+  for (const auto& simtrack : *gemSimTrack.product()) {
+
+    if (trkid == (int)simtrack.trackId()) {
+      cout << "<In simtrack> " << "trkid: " << simtrack.trackId() << ", pid: " << simtrack.type() << ", vertidx: " << simtrack.vertIndex() << endl;
+      return simtrack.vertIndex();
+    }
+  }
+  return 0;
+}
+
+int GEMHitAnalyzer_HitForSim::vertex2parent(const edm::Handle<edm::SimVertexContainer> gemSimVertex,
+                                                int vertid) {
+  for (const auto& simvertex : *gemSimVertex.product()) {
+    if (vertid == (int)simvertex.vertexId()) {
+        cout << "<In simvertex> " << "vertid: " << simvertex.vertexId() << ", prcs: " << simvertex.processType() << ", parentidx: " << simvertex.parentIndex() << endl;
+      return simvertex.parentIndex();
+    }
+  }
+  return 0;
+}
 
 void
-GEMHitAnalyzer_RecHitForSim::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
+GEMHitAnalyzer_HitForSim::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
   /* GEM Geometry */
   edm::ESHandle<GEMGeometry> hGEMGeom;
@@ -180,8 +210,11 @@ GEMHitAnalyzer_RecHitForSim::analyze(const edm::Event& iEvent, const edm::EventS
   edm::Handle<edm::PSimHitContainer> gemSimHits;
   iEvent.getByToken(gemSimHits_, gemSimHits);
 
-  // edm::Handle<edm::SimTrackContainer> gemSimTrack;
-  // iEvent.getByToken(gemSimTrack_, gemSimTrack);
+  edm::Handle<edm::SimTrackContainer> gemSimTrack;
+  iEvent.getByToken(gemSimTrack_, gemSimTrack);
+
+  edm::Handle<edm::SimVertexContainer> gemSimVertex;
+  iEvent.getByToken(gemSimVertex_, gemSimVertex);
 
   float RecEvNrechits = 0;
   float RecEvSumCls = 0;
@@ -270,8 +303,10 @@ GEMHitAnalyzer_RecHitForSim::analyze(const edm::Event& iEvent, const edm::EventS
     auto lp = simhit.localPosition();
     // auto strip = etapart->strip(lp);
     auto pitch = etapart->localPitch(lp); // cm
-  
+    int trkid = simhit.trackId();
+    cout << "trkid: " << trkid << " " << typeid(trkid).name() << endl;
     auto pid = simhit.particleType();
+    cout << "pid: " << pid << endl;
     auto eloss = simhit.energyLoss(); // GeV
     auto pabs = simhit.pabs(); // GeV
     auto process = simhit.processType();
@@ -282,6 +317,64 @@ GEMHitAnalyzer_RecHitForSim::analyze(const edm::Event& iEvent, const edm::EventS
     auto height = path.z(); // cm [sensitive detector is at 0.2975 cm]
     auto exp_cls = width/pitch+1; // width/strip pitch and (+1) for histogram matching
 
+    int v = track2vertex(gemSimTrack, trkid);
+    int p = vertex2parent(gemSimVertex, v);
+    while (p != -1) {
+      v = track2vertex(gemSimTrack, p);
+      p = vertex2parent(gemSimVertex, v);
+    }
+
+
+    // for (const auto& simtrack : *gemSimTrack.product()) {
+    //   if (trkid == simtrack.trackId()) {
+    //     cout << "addr?: " << simtrack << ", " << &simtrack << ", " << (&simtrack).vertIndex() << endl;
+    //   }
+      // if (trkid == simtrack.trackId()) {
+      //   cout << simtrack.trackId() << ": " << *(simtrack.trackId()) << ", " << &(simtrack.trackId()) << endl;
+      //   break;
+        // for (const auto& simvertex : *gemSimVertex.product()) {
+        //   if (simtrack.vertIndex() == simvertex.vertexId()) {
+        //     break;
+        //     simvertex.parentIndex()
+        //   }
+        // }
+      // }
+    // }
+
+    // cout << "find: " << find(simtrack.trackId().begin(), simtrack.trackId().end(), trkid) << endl;
+    // cout << "addr: " << *simtrack << endl;
+
+    // for (const auto& simtrack : *gemSimTrack.product()) {
+    //   if (trkid == simtrack.trackId()) {
+    //     for (const auto& simvertex : *gemSimVertex.product()) {
+    //       if (simtrack.vertIndex() == simvertex.vertexId()) {
+    //         break;
+    //         simvertex.parentIndex()
+    //       }
+    //     }
+    //   }
+    //   // auto vert = simtrack.vertIndex();
+    //   // auto genpart = simtrack.genpartIndex();
+    //   // auto pid = simtrack.type();
+    //   // cout << "trackid: " << trackid << ", vert: " << vert << ", genpart: " << genpart << ", pid: " << pid << endl;
+    // }
+    // for (const auto& simvertex : *gemSimVertex.product()) {
+    //   auto parent = simvertex.parentIndex();
+    //   auto vid = simvertex.vertexId();
+    //   auto prcs = simvertex.processType();
+    //   cout << "parent: " << parent << ", vid: " << vid << ", prcs: " << prcs << endl;
+    // }
+
+
+    // const auto& simtrack = *gemSimTrack.product();
+    // auto trackid_ = simtrack[trackid-1].trackId();
+    // auto vert = simtrack[trackid-1].vertIndex();
+    // auto genpart = simtrack[trackid-1].genpartIndex();
+    // auto type = simtrack[trackid-1].type();
+    // cout << "trackId: " << trackid_ << ", vert: " << vert << ", genpart: " << genpart << ", type: " << type << endl;
+
+
+    // sort pid/process format
     if (pid == 22) pid = 0;          // photon
     else if (pid == 11) pid = 1;     // electron
     else if (pid == -11) pid = 2;    // positron
@@ -343,18 +436,45 @@ GEMHitAnalyzer_RecHitForSim::analyze(const edm::Event& iEvent, const edm::EventS
     b_SimHitWidth = width;
     b_SimHitHeight = height;
     b_SimHitCls = exp_cls;
+
+    // energy loss cut fo ionization minimum threshold 
     if (eloss*1E9 > 28.1) b_SimHitElosscut = 1;
     else b_SimHitElosscut = 0;
+
     t_SimHit->Fill();
   }
+
+
+  // for ( auto ivtx=SimVtx->begin(); ivtx!=SimVtx->end(); ++ivtx )
+  // {
+  // }
+  // for ( auto itk=gemSimTrack->begin(); itk!=gemSimTrack->end(); ++itk )
+  // {
+  // }
+
+  // for (const auto& simvertex : *gemSimVertex.product()) {
+  //   auto parent = simvertex.parentIndex();
+  //   auto vid = simvertex.vertexId();
+  //   auto prcs = simvertex.processType();
+  //   cout << "parent: " << parent << ", vid: " << vid << ", prcs: " << prcs << endl;
+  // }
+  // for (const auto& simtrack : *gemSimTrack.product()) {
+  //   // GEMDetId simhit_gemid(simtrack.detUnitId());
+  //   // const GEMEtaPartition* etapart = gem->etaPartition(simhit_gemid);
+  //   auto trackid = simtrack.trackId();
+  //   auto vert = simtrack.vertIndex();
+  //   auto genpart = simtrack.genpartIndex();
+  //   auto pid = simtrack.type();
+  //   cout << "trackid: " << trackid << ", vert: " << vert << ", genpart: " << genpart << ", pid: " << pid << endl;
+  // }
 
   h_nEvents->Fill(1);
 }
 
-void GEMHitAnalyzer_RecHitForSim::beginJob(){}
-void GEMHitAnalyzer_RecHitForSim::endJob(){}
+void GEMHitAnalyzer_HitForSim::beginJob(){}
+void GEMHitAnalyzer_HitForSim::endJob(){}
 
-void GEMHitAnalyzer_RecHitForSim::beginRun(const edm::Run& run, const edm::EventSetup& iSetup) { 
+void GEMHitAnalyzer_HitForSim::beginRun(const edm::Run& run, const edm::EventSetup& iSetup) { 
   /* GEM Geometry */
   edm::ESHandle<GEMGeometry> hGEMGeom;
   hGEMGeom = iSetup.getHandle(hGEMGeomBeginRun_);
@@ -365,8 +485,8 @@ void GEMHitAnalyzer_RecHitForSim::beginRun(const edm::Run& run, const edm::Event
   h_nEvents = fs->make<TH1I>("nEvents", "The number of events", 2, 0, 2);
 
 }
-void GEMHitAnalyzer_RecHitForSim::endRun(edm::Run const&, edm::EventSetup const&){
+void GEMHitAnalyzer_HitForSim::endRun(edm::Run const&, edm::EventSetup const&){
 }
                    
 //define this as a plug-in
-DEFINE_FWK_MODULE(GEMHitAnalyzer_RecHitForSim);
+DEFINE_FWK_MODULE(GEMHitAnalyzer_HitForSim);
