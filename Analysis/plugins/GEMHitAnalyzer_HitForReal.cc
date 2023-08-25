@@ -34,7 +34,7 @@
 #include "Geometry/GEMGeometry/interface/GEMEtaPartitionSpecs.h"
 #include "Geometry/CommonTopologies/interface/GEMStripTopology.h"
 #include "DataFormats/TCDS/interface/TCDSRecord.h"
-// #include "DataFormats/OnlineMetaData/interface/OnlineLuminosityRecord.h"
+#include "DataFormats/OnlineMetaData/interface/OnlineLuminosityRecord.h"
 // Muon
 #include "DataFormats/PatCandidates/interface/Muon.h"
 #include "DataFormats/TrackReco/interface/Track.h"
@@ -106,6 +106,11 @@ private:
   int b_RecHitRe, b_RecHitSt, b_RecHitLa, b_RecHitCh, b_RecHitIe;
   float b_RecHitEvNrechit;
   int b_RecHitCls;
+
+  float b_instLumi;
+  int b_bunchId, b_orbitNumber;
+  long b_event, b_eventTime;
+  int b_chamErr, b_bigClsEv;
 };
 
 GEMHitAnalyzer_HitForReal::GEMHitAnalyzer_HitForReal(const edm::ParameterSet& iConfig)
@@ -117,7 +122,7 @@ GEMHitAnalyzer_HitForReal::GEMHitAnalyzer_HitForReal(const edm::ParameterSet& iC
   oh_status_collection_ = consumes<GEMOHStatusCollection>(iConfig.getParameter<edm::InputTag>("OHInputLabel"));
   vfat_status_collection_ = consumes<GEMVFATStatusCollection>(iConfig.getParameter<edm::InputTag>("VFATInputLabel"));
   tcdsRecord_ = consumes<TCDSRecord>(iConfig.getParameter<edm::InputTag>("tcdsRecord"));
-  // onlineLumiRecord_ = consumes<OnlineLuminosityRecord>(iConfig.getParameter<edm::InputTag>("onlineMetaDataDigis"));
+  onlineLumiRecord_ = consumes<OnlineLuminosityRecord>(iConfig.getParameter<edm::InputTag>("onlineMetaDataDigis"));
 
 //  hGEMGeomBegin_ = esConsumes<GEMGeometry, MuonGeometryRecord>(); 
 //  hGEMGeom_ = esConsumes<GEMGeometry, MuonGeometryRecord>();
@@ -141,6 +146,15 @@ GEMHitAnalyzer_HitForReal::GEMHitAnalyzer_HitForReal(const edm::ParameterSet& iC
   RecHitBRANCH(RecHitIe, I);
   RecHitBRANCH(RecHitEvNrechit, F);
   RecHitBRANCH(RecHitCls, I);
+
+  RecHitBRANCH(instLumi, F);
+  RecHitBRANCH(bunchId, I);
+  RecHitBRANCH(orbitNumber, I);
+  RecHitBRANCH(event, l);
+  RecHitBRANCH(eventTime, l);
+  RecHitBRANCH(chamErr, I);
+  RecHitBRANCH(bigClsEv, I);
+
 }
 
 #endif
@@ -149,8 +163,8 @@ GEMHitAnalyzer_HitForReal::GEMHitAnalyzer_HitForReal(const edm::ParameterSet& iC
 GEMHitAnalyzer_HitForReal::~GEMHitAnalyzer_HitForReal(){}
 
 bool GEMHitAnalyzer_HitForReal::maskChamberWithError(const GEMDetId& chamber_id,
-                                         const edm::Handle<GEMVFATStatusCollection> vfat_status_collection,
-                                         const edm::Handle<GEMOHStatusCollection> oh_status_collection) {
+                                                      const edm::Handle<GEMVFATStatusCollection> vfat_status_collection,
+                                                      const edm::Handle<GEMOHStatusCollection> oh_status_collection) {
   const bool mask = true;
   for (auto iter = oh_status_collection->begin(); iter != oh_status_collection->end(); iter++) {
     const auto [oh_id, range] = (*iter);
@@ -206,12 +220,50 @@ GEMHitAnalyzer_HitForReal::analyze(const edm::Event& iEvent, const edm::EventSet
   edm::Handle<TCDSRecord> record;
   iEvent.getByToken(tcdsRecord_, record);
 
-  // edm::Handle<OnlineLuminosityRecord> onlineLumiRecord;
-  // iEvent.getByToken(onlineLumiRecord_, onlineLumiRecord);
+  edm::Handle<OnlineLuminosityRecord> onlineLumiRecord;
+  iEvent.getByToken(onlineLumiRecord_, onlineLumiRecord);
 
   if (!record.isValid() || !gemRecHits.isValid()) {
     cout << "Error!" << endl;
     return;
+  }
+
+  // std::vector<std::vector<int>> n_hits_each_chamber(8, std::vector<int>(36, 0)); // giving max nDigis in one chamber
+  std::vector<std::vector<int>> n_hits_each_etaPart(8, std::vector<int>(576, 0)); // giving max nDigis in one etaPartition
+
+  for (const GEMRecHit& cluster : *gemRecHits) {
+    // ++n_clusters;
+    GEMDetId hit_id = cluster.gemId();
+    int layer_index = (hit_id.region()+1)/2 + 2*(hit_id.station()-1) + 4*(hit_id.layer()-1);
+    // n_hits = cluster.clusterSize();
+    // n_hits_each_chamber[layer_index][hit_id.chamber() - 1] += n_hits;
+    int eta_index = 16 * (hit_id.chamber() - 1) + hit_id.ieta() - 1;
+    n_hits_each_etaPart[layer_index][eta_index] += cluster.clusterSize();
+  }
+
+  /*  we don't want to use hit based cut
+  if ((n_clusters > 650.) || ((n_clusters - 50.) * (2000. / 600.) > n_hits)) {
+    return;
+   }
+  */
+
+  /* W.Heo's flower event cut
+  int max_val = *std::max_element(n_hits_each_chamber[0].begin(),n_hits_each_chamber[0].end());
+  for (const auto& row : n_hits_each_chamber) {
+    max_val = std::max(max_val, *std::max_element(row.begin(), row.end()));
+    if (max_val > 384) return;
+  }
+  */
+
+  b_bigClsEv = 0;
+  int max_val;
+  // for (const auto& row : n_hits_each_chamber) {
+  for (const auto& row : n_hits_each_etaPart) {
+    max_val = *std::max_element(row.begin(), row.end());
+    // if (max_val > 384) return; // big cluster event filter
+    if (max_val > 48) { // big cluster event filter
+      b_bigClsEv = 1; 
+    }
   }
 
   /*  Laurant's method */
@@ -220,55 +272,62 @@ GEMHitAnalyzer_HitForReal::analyze(const edm::Event& iEvent, const edm::EventSet
         + record->getBXID() - record->getL1aHistoryEntry(i).getBXID();
 
     if ((l1a_diff > 150) && (l1a_diff < 200)) {
-      std::cout << "Flower event!!!" << std::endl;
+      cout << "Flower event!!!" << endl;
       return;
     }
   }
 
-  // float RecEvNrechits = 0;
-  // float RecEvSumCls = 0;
-  // for (const GEMRegion* Region : GEMGeometry_->regions()){
-  //     for (const GEMStation* Station : Region->stations()){
-  //       int st = Station->station();
-  //       if (st != 1) continue;
-  //       for (const GEMRing* Ring : Station->rings()){
-  //         for (const GEMSuperChamber* SuperChamber : Ring->superChambers()){
-  //           for (const GEMChamber* Chamber : SuperChamber->chambers()){
-  //             GEMDetId chId = Chamber->id();
-  //             if (maskChamberWithError(chId, vfat_status_collection, oh_status_collection)) continue;
 
-  //             for (const GEMEtaPartition* etaPart : Chamber->etaPartitions()){
-  //               GEMDetId ieId = etaPart->id();
-  //               auto RecHitRange = gemRecHits->get(ieId);
 
-  //               float RecIeNrechits = 0;
-  //               float RecIeSumCls = 0;
-  //               for (auto rechit = RecHitRange.first; rechit != RecHitRange.second; ++rechit) {
-  //                 int firstStrip = rechit->firstClusterStrip();
-  //                 int clsSize = rechit->clusterSize();
+  float RecEvNrechits = 0;
+  float RecEvSumCls = 0;
+  for (const GEMRegion* Region : GEMGeometry_->regions()){
+      for (const GEMStation* Station : Region->stations()){
+        int st = Station->station();
+        if (st != 1) continue;
+        for (const GEMRing* Ring : Station->rings()){
+          for (const GEMSuperChamber* SuperChamber : Ring->superChambers()){
+            for (const GEMChamber* Chamber : SuperChamber->chambers()){
+              GEMDetId chId = Chamber->id();
+              // b_chamErr = maskChamberWithError(chId, vfat_status_collection, oh_status_collection);
+              for (const GEMEtaPartition* etaPart : Chamber->etaPartitions()){
+                GEMDetId ieId = etaPart->id();
+                auto RecHitRange = gemRecHits->get(ieId);
 
-  //                 RecIeNrechits++;
-  //                 RecIeSumCls += clsSize;
+                float RecIeNrechits = 0;
+                float RecIeSumCls = 0;
+                for (auto rechit = RecHitRange.first; rechit != RecHitRange.second; ++rechit) {
+                  int firstStrip = rechit->firstClusterStrip();
+                  int clsSize = rechit->clusterSize();
 
-  //                 RecEvNrechits++;
-  //                 RecEvSumCls += clsSize;
-  //               }
-  //               if (RecIeNrechits != 0){
-  //                 b_RecIeNrechit = RecIeNrechits;
-  //                 b_RecIeAvgCls = RecIeSumCls/RecIeNrechits;
-  //                 t_RecIeta->Fill();
-  //               }
-  //             } // eta partition loop
-  //           } // chamber loop
-  //         } // super chamber loop
-  //       } // ring loop
-  //     } // station loop
-  // } // region loop
-  // if (RecEvNrechits != 0){
-  //   b_RecEvNrechit = RecEvNrechits;
-  //   b_RecEvAvgCls = RecEvSumCls/RecEvNrechits;
-  //   t_RecEvent->Fill();
-  // }
+                  RecIeNrechits++;
+                  RecIeSumCls += clsSize;
+
+                  RecEvNrechits++;
+                  RecEvSumCls += clsSize;
+                }
+                if (RecIeNrechits != 0){
+                  b_RecIeNrechit = RecIeNrechits;
+                  b_RecIeAvgCls = RecIeSumCls/RecIeNrechits;
+                  t_RecIeta->Fill();
+                }
+              } // eta partition loop
+            } // chamber loop
+          } // super chamber loop
+        } // ring loop
+      } // station loop
+  } // region loop
+  if (RecEvNrechits != 0){
+    b_RecEvNrechit = RecEvNrechits;
+    b_RecEvAvgCls = RecEvSumCls/RecEvNrechits;
+    t_RecEvent->Fill();
+  }
+
+  b_instLumi = onlineLumiRecord->instLumi();
+  b_bunchId = iEvent.bunchCrossing();
+  b_orbitNumber = iEvent.orbitNumber();
+  b_eventTime = iEvent.time().unixTime();
+  b_event = iEvent.id().event();
 
   for (const GEMRegion* Region : GEMGeometry_->regions()){
       int re = Region->region();
@@ -280,7 +339,7 @@ GEMHitAnalyzer_HitForReal::analyze(const edm::Event& iEvent, const edm::EventSet
           for (const GEMSuperChamber* SuperChamber : Ring->superChambers()){
             for (const GEMChamber* Chamber : SuperChamber->chambers()){
               GEMDetId chId = Chamber->id();
-              if (maskChamberWithError(chId, vfat_status_collection, oh_status_collection)) continue;
+              b_chamErr = maskChamberWithError(chId, vfat_status_collection, oh_status_collection);
               int la = chId.layer();
               int ch = chId.chamber();
               for (const GEMEtaPartition* etaPart : Chamber->etaPartitions()){
@@ -298,7 +357,7 @@ GEMHitAnalyzer_HitForReal::analyze(const edm::Event& iEvent, const edm::EventSet
                   b_RecHitCh = ch;
                   b_RecHitIe = ie;
                   b_RecHitCls = clsSize;
-                  // b_RecHitEvNrechit = RecEvNrechits;
+                  b_RecHitEvNrechit = RecEvNrechits;
                   t_RecHit->Fill();
                 }
 
