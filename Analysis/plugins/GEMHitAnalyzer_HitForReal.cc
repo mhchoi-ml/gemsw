@@ -11,7 +11,6 @@
 // user include files
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/one/EDAnalyzer.h"
-
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
@@ -27,14 +26,14 @@
 #include "DataFormats/GEMDigi/interface/GEMOHStatusCollection.h"
 #include "DataFormats/GEMDigi/interface/GEMVFATStatusCollection.h"
 #include "DataFormats/GEMRecHit/interface/GEMRecHitCollection.h"
-#include "DataFormats/GEMRecHit/interface/GEMSegmentCollection.h"
+// #include "DataFormats/GEMRecHit/interface/GEMSegmentCollection.h"
 #include "DataFormats/MuonDetId/interface/GEMDetId.h"
 #include "Geometry/GEMGeometry/interface/GEMGeometry.h"
 #include "Geometry/GEMGeometry/interface/GEMEtaPartition.h"
 #include "Geometry/GEMGeometry/interface/GEMEtaPartitionSpecs.h"
 #include "Geometry/CommonTopologies/interface/GEMStripTopology.h"
 #include "DataFormats/TCDS/interface/TCDSRecord.h"
-#include "DataFormats/OnlineMetaData/interface/OnlineLuminosityRecord.h"
+// #include "DataFormats/OnlineMetaData/interface/OnlineLuminosityRecord.h"
 // Muon
 #include "DataFormats/PatCandidates/interface/Muon.h"
 #include "DataFormats/TrackReco/interface/Track.h"
@@ -107,7 +106,7 @@ private:
   float b_RecHitEvNrechit;
   int b_RecHitCls;
 
-  float b_instLumi;
+  // float b_instLumi;
   int b_bunchId, b_orbitNumber;
   long b_event, b_eventTime;
   int b_chamErr, b_bigClsEv;
@@ -122,7 +121,7 @@ GEMHitAnalyzer_HitForReal::GEMHitAnalyzer_HitForReal(const edm::ParameterSet& iC
   oh_status_collection_ = consumes<GEMOHStatusCollection>(iConfig.getParameter<edm::InputTag>("OHInputLabel"));
   vfat_status_collection_ = consumes<GEMVFATStatusCollection>(iConfig.getParameter<edm::InputTag>("VFATInputLabel"));
   tcdsRecord_ = consumes<TCDSRecord>(iConfig.getParameter<edm::InputTag>("tcdsRecord"));
-  onlineLumiRecord_ = consumes<OnlineLuminosityRecord>(iConfig.getParameter<edm::InputTag>("onlineMetaDataDigis"));
+  // onlineLumiRecord_ = consumes<OnlineLuminosityRecord>(iConfig.getParameter<edm::InputTag>("onlineMetaDataDigis"));
 
 //  hGEMGeomBegin_ = esConsumes<GEMGeometry, MuonGeometryRecord>(); 
 //  hGEMGeom_ = esConsumes<GEMGeometry, MuonGeometryRecord>();
@@ -147,7 +146,7 @@ GEMHitAnalyzer_HitForReal::GEMHitAnalyzer_HitForReal(const edm::ParameterSet& iC
   RecHitBRANCH(RecHitEvNrechit, F);
   RecHitBRANCH(RecHitCls, I);
 
-  RecHitBRANCH(instLumi, F);
+  // RecHitBRANCH(instLumi, F);
   RecHitBRANCH(bunchId, I);
   RecHitBRANCH(orbitNumber, I);
   RecHitBRANCH(event, l);
@@ -220,8 +219,8 @@ GEMHitAnalyzer_HitForReal::analyze(const edm::Event& iEvent, const edm::EventSet
   edm::Handle<TCDSRecord> record;
   iEvent.getByToken(tcdsRecord_, record);
 
-  edm::Handle<OnlineLuminosityRecord> onlineLumiRecord;
-  iEvent.getByToken(onlineLumiRecord_, onlineLumiRecord);
+  // edm::Handle<OnlineLuminosityRecord> onlineLumiRecord;
+  // iEvent.getByToken(onlineLumiRecord_, onlineLumiRecord);
 
   if (!record.isValid() || !gemRecHits.isValid()) {
     cout << "Error!" << endl;
@@ -288,7 +287,7 @@ GEMHitAnalyzer_HitForReal::analyze(const edm::Event& iEvent, const edm::EventSet
         for (const GEMRing* Ring : Station->rings()){
           for (const GEMSuperChamber* SuperChamber : Ring->superChambers()){
             for (const GEMChamber* Chamber : SuperChamber->chambers()){
-              GEMDetId chId = Chamber->id();
+              // GEMDetId chId = Chamber->id();
               // b_chamErr = maskChamberWithError(chId, vfat_status_collection, oh_status_collection);
               for (const GEMEtaPartition* etaPart : Chamber->etaPartitions()){
                 GEMDetId ieId = etaPart->id();
@@ -323,7 +322,7 @@ GEMHitAnalyzer_HitForReal::analyze(const edm::Event& iEvent, const edm::EventSet
     t_RecEvent->Fill();
   }
 
-  b_instLumi = onlineLumiRecord->instLumi();
+  // b_instLumi = onlineLumiRecord->instLumi();
   b_bunchId = iEvent.bunchCrossing();
   b_orbitNumber = iEvent.orbitNumber();
   b_eventTime = iEvent.time().unixTime();
