@@ -109,6 +109,7 @@ private:
   float b_SimHitPitch, b_SimHitPid, b_SimHitProcess, b_SimHitEloss, b_SimHitP;
   float b_SimHitLength, b_SimHitWidth, b_SimHitHeight;
   float b_SimHitCls, b_SimHitElosscut;
+  int b_SimNVert;
 };
 
 GEMHitAnalyzer_HitForSim::GEMHitAnalyzer_HitForSim(const edm::ParameterSet& iConfig)
@@ -156,6 +157,7 @@ GEMHitAnalyzer_HitForSim::GEMHitAnalyzer_HitForSim(const edm::ParameterSet& iCon
   SimHitBRANCH(SimHitHeight, F);
   SimHitBRANCH(SimHitCls, F);
   SimHitBRANCH(SimHitElosscut, F);
+  SimHitBRANCH(SimNVert, I)
 }
 
 #endif
@@ -302,9 +304,7 @@ GEMHitAnalyzer_HitForSim::analyze(const edm::Event& iEvent, const edm::EventSetu
     // auto strip = etapart->strip(lp);
     auto pitch = etapart->localPitch(lp); // cm
     int trkid = simhit.trackId();
-    cout << "trkid: " << trkid << " " << typeid(trkid).name() << endl;
     auto pid = simhit.particleType();
-    cout << "pid: " << pid << endl;
     auto eloss = simhit.energyLoss(); // GeV
     auto pabs = simhit.pabs(); // GeV
     auto process = simhit.processType();
@@ -315,12 +315,15 @@ GEMHitAnalyzer_HitForSim::analyze(const edm::Event& iEvent, const edm::EventSetu
     auto height = path.z(); // cm [sensitive detector is at 0.2975 cm]
     auto exp_cls = width/pitch+1; // width/strip pitch and (+1) for histogram matching
 
+    int count = 0;
     int v = track2vertex(gemSimTrack, trkid);
     int p = vertex2parent(gemSimVertex, v);
     while (p != -1) {
+      count += 1;
       v = track2vertex(gemSimTrack, p);
       p = vertex2parent(gemSimVertex, v);
     }
+    b_SimNVert = count;
 
 
     // for (const auto& simtrack : *gemSimTrack.product()) {

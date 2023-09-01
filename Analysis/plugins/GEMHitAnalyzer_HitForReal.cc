@@ -26,7 +26,6 @@
 #include "DataFormats/GEMDigi/interface/GEMOHStatusCollection.h"
 #include "DataFormats/GEMDigi/interface/GEMVFATStatusCollection.h"
 #include "DataFormats/GEMRecHit/interface/GEMRecHitCollection.h"
-// #include "DataFormats/GEMRecHit/interface/GEMSegmentCollection.h"
 #include "DataFormats/MuonDetId/interface/GEMDetId.h"
 #include "Geometry/GEMGeometry/interface/GEMGeometry.h"
 #include "Geometry/GEMGeometry/interface/GEMEtaPartition.h"
@@ -69,7 +68,7 @@ public:
   ~GEMHitAnalyzer_HitForReal();
 
 private:
-  bool maskChamberWithError(const GEMDetId& chamber_id, const edm::Handle<GEMVFATStatusCollection>, const edm::Handle<GEMOHStatusCollection>);
+  int maskChamberWithError(const GEMDetId& chamber_id, const edm::Handle<GEMVFATStatusCollection>, const edm::Handle<GEMOHStatusCollection>);
   virtual void analyze(const edm::Event&, const edm::EventSetup&);
   virtual void beginJob() override;
   virtual void endJob() override;
@@ -161,10 +160,10 @@ GEMHitAnalyzer_HitForReal::GEMHitAnalyzer_HitForReal(const edm::ParameterSet& iC
 
 GEMHitAnalyzer_HitForReal::~GEMHitAnalyzer_HitForReal(){}
 
-bool GEMHitAnalyzer_HitForReal::maskChamberWithError(const GEMDetId& chamber_id,
+int GEMHitAnalyzer_HitForReal::maskChamberWithError(const GEMDetId& chamber_id,
                                                       const edm::Handle<GEMVFATStatusCollection> vfat_status_collection,
                                                       const edm::Handle<GEMOHStatusCollection> oh_status_collection) {
-  const bool mask = true;
+  int mask = 1;
   for (auto iter = oh_status_collection->begin(); iter != oh_status_collection->end(); iter++) {
     const auto [oh_id, range] = (*iter);
     if (chamber_id != oh_id) {
@@ -189,7 +188,7 @@ bool GEMHitAnalyzer_HitForReal::maskChamberWithError(const GEMDetId& chamber_id,
       }  // isBad
     }  // range
   }  // collection
-  return not mask;
+  return mask-1;
 }
 
 void
@@ -222,25 +221,12 @@ GEMHitAnalyzer_HitForReal::analyze(const edm::Event& iEvent, const edm::EventSet
   // edm::Handle<OnlineLuminosityRecord> onlineLumiRecord;
   // iEvent.getByToken(onlineLumiRecord_, onlineLumiRecord);
 
+
   if (!record.isValid() || !gemRecHits.isValid()) {
-    cout << "Error!" << endl;
     return;
   }
 
-  // std::vector<std::vector<int>> n_hits_each_chamber(8, std::vector<int>(36, 0)); // giving max nDigis in one chamber
-  std::vector<std::vector<int>> n_hits_each_etaPart(8, std::vector<int>(576, 0)); // giving max nDigis in one etaPartition
-
-  for (const GEMRecHit& cluster : *gemRecHits) {
-    // ++n_clusters;
-    GEMDetId hit_id = cluster.gemId();
-    int layer_index = (hit_id.region()+1)/2 + 2*(hit_id.station()-1) + 4*(hit_id.layer()-1);
-    // n_hits = cluster.clusterSize();
-    // n_hits_each_chamber[layer_index][hit_id.chamber() - 1] += n_hits;
-    int eta_index = 16 * (hit_id.chamber() - 1) + hit_id.ieta() - 1;
-    n_hits_each_etaPart[layer_index][eta_index] += cluster.clusterSize();
-  }
-
-  /*  we don't want to use hit based cut
+    /*  we don't want to use hit based cut
   if ((n_clusters > 650.) || ((n_clusters - 50.) * (2000. / 600.) > n_hits)) {
     return;
    }
@@ -254,24 +240,12 @@ GEMHitAnalyzer_HitForReal::analyze(const edm::Event& iEvent, const edm::EventSet
   }
   */
 
-  b_bigClsEv = 0;
-  int max_val;
-  // for (const auto& row : n_hits_each_chamber) {
-  for (const auto& row : n_hits_each_etaPart) {
-    max_val = *std::max_element(row.begin(), row.end());
-    // if (max_val > 384) return; // big cluster event filter
-    if (max_val > 48) { // big cluster event filter
-      b_bigClsEv = 1; 
-    }
-  }
-
   /*  Laurant's method */
   for (size_t i = 0; i < max_trigger; ++i) {
     long l1a_diff = 3564 * (record->getOrbitNr() - record->getL1aHistoryEntry(i).getOrbitNr())
         + record->getBXID() - record->getL1aHistoryEntry(i).getBXID();
 
     if ((l1a_diff > 150) && (l1a_diff < 200)) {
-      cout << "Flower event!!!" << endl;
       return;
     }
   }
@@ -320,6 +294,31 @@ GEMHitAnalyzer_HitForReal::analyze(const edm::Event& iEvent, const edm::EventSet
     b_RecEvNrechit = RecEvNrechits;
     b_RecEvAvgCls = RecEvSumCls/RecEvNrechits;
     t_RecEvent->Fill();
+  }
+
+
+  // std::vector<std::vector<int>> n_hits_each_chamber(8, std::vector<int>(36, 0)); // giving max nDigis in one chamber
+  std::vector<std::vector<int>> n_hits_each_etaPart(8, std::vector<int>(576, 0)); // giving max nDigis in one etaPartition
+
+  for (const GEMRecHit& cluster : *gemRecHits) {
+    // ++n_clusters;
+    GEMDetId hit_id = cluster.gemId();
+    int layer_index = (hit_id.region()+1)/2 + 2*(hit_id.station()-1) + 4*(hit_id.layer()-1);
+    // n_hits = cluster.clusterSize();
+    // n_hits_each_chamber[layer_index][hit_id.chamber() - 1] += n_hits;
+    int eta_index = 16 * (hit_id.chamber() - 1) + hit_id.ieta() - 1;
+    n_hits_each_etaPart[layer_index][eta_index] += cluster.clusterSize();
+  }
+
+  b_bigClsEv = 0;
+  int max_val;
+  // for (const auto& row : n_hits_each_chamber) {
+  for (const auto& row : n_hits_each_etaPart) {
+    max_val = *std::max_element(row.begin(), row.end());
+    // if (max_val > 384) return; // big cluster event filter
+    if (max_val > 48) { // big cluster event filter
+      b_bigClsEv = 1; 
+    }
   }
 
   // b_instLumi = onlineLumiRecord->instLumi();
