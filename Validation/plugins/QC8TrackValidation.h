@@ -78,11 +78,16 @@ private:
   edm::ESGetToken<GEMGeometry, MuonGeometryRecord> hGEMGeomBeginRun_;
 
   dqm::impl::MonitorElement* trackChi2_;
+  dqm::impl::MonitorElement* clustersize_;
 
   std::map<int, dqm::impl::MonitorElement*> track_ch_occ_;
   std::map<int, dqm::impl::MonitorElement*> rechit_ch_occ_;
   std::map<Key2, dqm::impl::MonitorElement*> track_occ_;
   std::map<Key2, dqm::impl::MonitorElement*> rechit_occ_;
+
+  std::map<Key2, dqm::impl::MonitorElement*> residual_;
+  std::map<Key2, dqm::impl::MonitorElement*> track_occ_ieta_;
+  std::map<Key2, dqm::impl::MonitorElement*> rechit_occ_ieta_;
 };
 
 #endif
