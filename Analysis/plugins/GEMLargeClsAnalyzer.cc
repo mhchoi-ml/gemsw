@@ -1,5 +1,5 @@
-#ifndef GEMHitAnalyzer_HitForSim_H
-#define GEMHitAnalyzer_HitForSim_H
+#ifndef GEMMCSimhitAnalyzer_H
+#define GEMMCSimhitAnalyzer_H
 // cd /cms/ldap_home/iawatson/scratch/GEM/CMSSW_10_1_5/src/ && eval `scramv1 runtime -sh` && eval `scramv1 runtime -sh` && scram b -j 10
 // cd ../../.. && source /cvmfs/cms.cern.ch/cmsset_default.sh && eval `scramv1 runtime -sh` && eval `scramv1 runtime -sh` && scram b -j 10
 // system include files
@@ -23,9 +23,6 @@
 #include "TrackingTools/PatternTools/interface/Trajectory.h"
 #include "CommonTools/UtilAlgos/interface/TFileService.h"
 // GEM
-// #include "DataFormats/GEMDigi/interface/GEMDigiCollection.h"
-#include "DataFormats/GEMRecHit/interface/GEMRecHitCollection.h"
-#include "DataFormats/GEMRecHit/interface/GEMSegmentCollection.h"
 #include "SimDataFormats/TrackingHit/interface/PSimHitContainer.h"
 #include "SimDataFormats/Track/interface/SimTrackContainer.h"
 #include "SimDataFormats/Vertex/interface/SimVertexContainer.h"
@@ -43,6 +40,8 @@
 #include "Geometry/Records/interface/MuonGeometryRecord.h"
 #include "Geometry/CommonDetUnit/interface/GeomDet.h"
 
+#include "DataFormats/VertexReco/interface/Vertex.h"
+
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Run.h"
 
@@ -58,18 +57,19 @@
 
 
 using namespace std;
+using namespace edm;
 typedef tuple<int> Key1;
 // typedef tuple<int, int> Key2;
 // typedef tuple<int, int, int> Key3;
 
-class GEMHitAnalyzer_HitForSim : public edm::one::EDAnalyzer<edm::one::WatchRuns> {  
+class GEMMCSimhitAnalyzer : public edm::one::EDAnalyzer<edm::one::WatchRuns> {  
 public:
-  explicit GEMHitAnalyzer_HitForSim(const edm::ParameterSet&);
-  ~GEMHitAnalyzer_HitForSim();
+  explicit GEMMCSimhitAnalyzer(const edm::ParameterSet&);
+  ~GEMMCSimhitAnalyzer();
 
 private:
-  int track2vertex(const edm::Handle<edm::SimTrackContainer>, int);
-  int vertex2parent(const edm::Handle<edm::SimVertexContainer>, int);
+  auto track2vertex(const edm::Handle<edm::SimTrackContainer>, auto);
+  auto vertex2parent(const edm::Handle<edm::SimVertexContainer>, auto);
   virtual void analyze(const edm::Event&, const edm::EventSetup&);
   virtual void beginJob() override;
   virtual void endJob() override;
@@ -77,10 +77,9 @@ private:
   virtual void beginRun(edm::Run const&, edm::EventSetup const&) override;
   virtual void endRun(edm::Run const&, edm::EventSetup const&) override;
 
+  // void initMuonValue();
   // ----------member data ---------------------------
   edm::Service<TFileService> fs;
-  // edm::EDGetTokenT<GEMDigiCollection> gemDigis_;
-  edm::EDGetTokenT<GEMRecHitCollection> gemRecHits_;
   edm::EDGetTokenT<edm::PSimHitContainer> gemSimHits_;
   edm::EDGetTokenT<edm::SimTrackContainer> gemSimTrack_;
   edm::EDGetTokenT<edm::SimVertexContainer> gemSimVertex_;
@@ -92,58 +91,26 @@ private:
 
   TH1I* h_nEvents;
 
-  TTree* t_RecEvent;
-  float b_RecEvNrechit;
-  float b_RecEvAvgCls;
-
-  TTree* t_RecIeta;
-  float b_RecIeNrechit;
-  float b_RecIeAvgCls;
-
-  TTree* t_RecHit;
-  int b_RecHitRe, b_RecHitSt, b_RecHitLa, b_RecHitCh, b_RecHitIe;
-  float b_RecHitEvNrechit;
-  int b_RecHitCls;
-
   TTree* t_SimHit;
   float b_SimHitPitch, b_SimHitPid, b_SimHitProcess, b_SimHitEloss, b_SimHitP;
+  float b_SimHitEntryX, b_SimHitEntryY, b_SimHitEntryZ;
+  float b_SimHitExitX, b_SimHitExitY, b_SimHitExitZ;
   float b_SimHitLength, b_SimHitWidth, b_SimHitHeight;
   float b_SimHitCls, b_SimHitElosscut;
   int b_SimNVert;
+  int b_SimHitNoVP;
 };
 
-GEMHitAnalyzer_HitForSim::GEMHitAnalyzer_HitForSim(const edm::ParameterSet& iConfig)
+GEMMCSimhitAnalyzer::GEMMCSimhitAnalyzer(const edm::ParameterSet& iConfig)
   : hGEMGeom_(esConsumes()),
     hGEMGeomBeginRun_(esConsumes<edm::Transition::BeginRun>())
 {
-  // gemDigis_ = consumes<GEMDigiCollection>(iConfig.getParameter<edm::InputTag>("gemDigiLabel"));
-  gemRecHits_ = consumes<GEMRecHitCollection>(iConfig.getParameter<edm::InputTag>("gemRecHitLabel"));
   gemSimHits_ = consumes<edm::PSimHitContainer>(iConfig.getParameter<edm::InputTag>("gemSimHitLabel"));
   gemSimTrack_ = consumes<edm::SimTrackContainer>(iConfig.getParameter<edm::InputTag>("gemSimTrackLabel"));
   gemSimVertex_ = consumes<edm::SimVertexContainer>(iConfig.getParameter<edm::InputTag>("gemSimVertexLabel"));
 
 //  hGEMGeomBegin_ = esConsumes<GEMGeometry, MuonGeometryRecord>(); 
 //  hGEMGeom_ = esConsumes<GEMGeometry, MuonGeometryRecord>();
-
-  t_RecEvent = fs->make<TTree>("RecEvent", "gem_rechits_per_event");
-  #define RecEvBRANCH(name, suffix) t_RecEvent->Branch(#name, & b_##name, #name "/" #suffix);
-  RecEvBRANCH(RecEvNrechit, F);
-  RecEvBRANCH(RecEvAvgCls, F);
-
-  t_RecIeta = fs->make<TTree>("RecIeta", "gem_rechits_per_ieta");
-  #define RecIeBRANCH(name, suffix) t_RecIeta->Branch(#name, & b_##name, #name "/" #suffix);
-  RecIeBRANCH(RecIeNrechit, F);
-  RecIeBRANCH(RecIeAvgCls, F);
-
-  t_RecHit = fs->make<TTree>("RecHit", "gem_rechits_per_hit");
-  #define RecHitBRANCH(name, suffix) t_RecHit->Branch(#name, & b_##name, #name "/" #suffix);
-  RecHitBRANCH(RecHitRe, I);
-  RecHitBRANCH(RecHitSt, I);
-  RecHitBRANCH(RecHitLa, I);
-  RecHitBRANCH(RecHitCh, I);
-  RecHitBRANCH(RecHitIe, I);
-  RecHitBRANCH(RecHitEvNrechit, F);
-  RecHitBRANCH(RecHitCls, I);
 
   t_SimHit = fs->make<TTree>("SimHit", "gem_simhits_per_hit");
   #define SimHitBRANCH(name, suffix) t_SimHit->Branch(#name, & b_##name, #name "/" #suffix);
@@ -152,45 +119,56 @@ GEMHitAnalyzer_HitForSim::GEMHitAnalyzer_HitForSim(const edm::ParameterSet& iCon
   SimHitBRANCH(SimHitProcess, F);
   SimHitBRANCH(SimHitEloss, F);
   SimHitBRANCH(SimHitP, F);
+  SimHitBRANCH(SimHitEntryX, F);
+  SimHitBRANCH(SimHitEntryY, F);
+  SimHitBRANCH(SimHitEntryZ, F);
+  SimHitBRANCH(SimHitExitX, F);
+  SimHitBRANCH(SimHitExitY, F);
+  SimHitBRANCH(SimHitExitZ, F);
   SimHitBRANCH(SimHitLength, F);
   SimHitBRANCH(SimHitWidth, F);
   SimHitBRANCH(SimHitHeight, F);
   SimHitBRANCH(SimHitCls, F);
   SimHitBRANCH(SimHitElosscut, F);
-  SimHitBRANCH(SimNVert, I)
+  SimHitBRANCH(SimNVert, I);
+  SimHitBRANCH(SimHitNoVP, I);
 }
 
 #endif
 
 
-GEMHitAnalyzer_HitForSim::~GEMHitAnalyzer_HitForSim(){}
+GEMMCSimhitAnalyzer::~GEMMCSimhitAnalyzer(){}
 
-int GEMHitAnalyzer_HitForSim::track2vertex(const edm::Handle<edm::SimTrackContainer> gemSimTrack,
-                                                int trkid) {
+auto GEMMCSimhitAnalyzer::track2vertex(const edm::Handle<edm::SimTrackContainer> gemSimTrack,
+                                                auto trkid) {
   for (const auto& simtrack : *gemSimTrack.product()) {
-
     if (trkid == (int)simtrack.trackId()) {
-      cout << "<In simtrack> " << "trkid: " << simtrack.trackId() << ", pid: " << simtrack.type() << ", vertidx: " << simtrack.vertIndex() << endl;
+      cout << "<In simtrack> " << "trkid: " << simtrack.trackId() << ", pid: " << simtrack.type() << ", vertidx: " << simtrack.vertIndex() << ", genpartidx: " << simtrack.genpartIndex() << endl;
+      cout << "<simtrk> " << "noV: " << simtrack.noVertex() << ", noG: " << simtrack.noGenpart() << endl;
       return simtrack.vertIndex();
     }
   }
-  return 0;
+  cout << "!!" << endl;
+  return -2;
 }
 
-int GEMHitAnalyzer_HitForSim::vertex2parent(const edm::Handle<edm::SimVertexContainer> gemSimVertex,
-                                                int vertid) {
+auto GEMMCSimhitAnalyzer::vertex2parent(const edm::Handle<edm::SimVertexContainer> gemSimVertex,
+                                                auto vertid) {
   for (const auto& simvertex : *gemSimVertex.product()) {
     if (vertid == (int)simvertex.vertexId()) {
-        cout << "<In simvertex> " << "vertid: " << simvertex.vertexId() << ", prcs: " << simvertex.processType() << ", parentidx: " << simvertex.parentIndex() << endl;
+      cout << "<In simvertex> " << "vertid: " << simvertex.vertexId() << ", prcs: " << simvertex.processType() << ", parentidx: " << simvertex.parentIndex() << endl;
+      cout << "<simvert> " << "noP: " << simvertex.noParent() << endl;
       return simvertex.parentIndex();
     }
   }
-  return 0;
+  cout << "??" << endl;
+  return -2;
 }
 
 void
-GEMHitAnalyzer_HitForSim::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
+GEMMCSimhitAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
+  cout << "\n" << endl;
   /* GEM Geometry */
   edm::ESHandle<GEMGeometry> hGEMGeom;
   hGEMGeom = iSetup.getHandle(hGEMGeom_);
@@ -201,12 +179,6 @@ GEMHitAnalyzer_HitForSim::analyze(const edm::Event& iEvent, const edm::EventSetu
   const GEMGeometry* GEMGeometry_ = &*hGEMGeom;
   const GEMGeometry* gem = hGEMGeom.product();
 
-  // edm::Handle<GEMDigiCollection> gemDigis;
-  // iEvent.getByToken(gemDigis_, gemDigis);
-
-  edm::Handle<GEMRecHitCollection> gemRecHits;
-  iEvent.getByToken(gemRecHits_, gemRecHits);
-
   edm::Handle<edm::PSimHitContainer> gemSimHits;
   iEvent.getByToken(gemSimHits_, gemSimHits);
 
@@ -216,86 +188,6 @@ GEMHitAnalyzer_HitForSim::analyze(const edm::Event& iEvent, const edm::EventSetu
   edm::Handle<edm::SimVertexContainer> gemSimVertex;
   iEvent.getByToken(gemSimVertex_, gemSimVertex);
 
-  float RecEvNrechits = 0;
-  float RecEvSumCls = 0;
-  for (const GEMRegion* Region : GEMGeometry_->regions()){
-      for (const GEMStation* Station : Region->stations()){
-        int st = Station->station();
-        if (st != 1) continue;
-        for (const GEMRing* Ring : Station->rings()){
-          for (const GEMSuperChamber* SuperChamber : Ring->superChambers()){
-            for (const GEMChamber* Chamber : SuperChamber->chambers()){
-
-              for (const GEMEtaPartition* etaPart : Chamber->etaPartitions()){
-                GEMDetId ieId = etaPart->id();
-                auto RecHitRange = gemRecHits->get(ieId);
-
-                float RecIeNrechits = 0;
-                float RecIeSumCls = 0;
-                for (auto rechit = RecHitRange.first; rechit != RecHitRange.second; ++rechit) {
-                  int firstStrip = rechit->firstClusterStrip();
-                  int clsSize = rechit->clusterSize();
-
-                  RecIeNrechits++;
-                  RecIeSumCls += clsSize;
-
-                  RecEvNrechits++;
-                  RecEvSumCls += clsSize;
-                }
-                if (RecIeNrechits != 0){
-                  b_RecIeNrechit = RecIeNrechits;
-                  b_RecIeAvgCls = RecIeSumCls/RecIeNrechits;
-                  t_RecIeta->Fill();
-                }
-              } // eta partition loop
-            } // chamber loop
-          } // super chamber loop
-        } // ring loop
-      } // station loop
-  } // region loop
-  if (RecEvNrechits != 0){
-    b_RecEvNrechit = RecEvNrechits;
-    b_RecEvAvgCls = RecEvSumCls/RecEvNrechits;
-    t_RecEvent->Fill();
-  }
-
-  for (const GEMRegion* Region : GEMGeometry_->regions()){
-      int re = Region->region();
-      for (const GEMStation* Station : Region->stations()){
-        int st = Station->station();
-        if (st != 1) continue;
-        for (const GEMRing* Ring : Station->rings()){
-          int ri = Ring->ring();
-          for (const GEMSuperChamber* SuperChamber : Ring->superChambers()){
-            for (const GEMChamber* Chamber : SuperChamber->chambers()){
-              GEMDetId chId = Chamber->id();
-              int la = chId.layer();
-              int ch = chId.chamber();
-              for (const GEMEtaPartition* etaPart : Chamber->etaPartitions()){
-                GEMDetId ieId = etaPart->id();
-                int ie = ieId.ieta();
-              
-                auto RecHitRange = gemRecHits->get(ieId);
-                for (auto rechit = RecHitRange.first; rechit != RecHitRange.second; ++rechit) {
-                  int firstStrip = rechit->firstClusterStrip();
-                  int clsSize = rechit->clusterSize();
-
-                  b_RecHitRe = re;
-                  b_RecHitSt = st;
-                  b_RecHitLa = la;
-                  b_RecHitCh = ch;
-                  b_RecHitIe = ie;
-                  b_RecHitCls = clsSize;
-                  b_RecHitEvNrechit = RecEvNrechits;
-                  t_RecHit->Fill();
-                }
-
-              } // eta partition loop
-            } // chamber loop
-          } // super chamber loop
-        } // ring loop
-      } // station loop
-  } // region loop
 
   for (const auto& simhit : *gemSimHits.product()) {
     GEMDetId simhit_gemid(simhit.detUnitId());
@@ -309,21 +201,77 @@ GEMHitAnalyzer_HitForSim::analyze(const edm::Event& iEvent, const edm::EventSetu
     auto pabs = simhit.pabs(); // GeV
     auto process = simhit.processType();
     
+    auto entryX = simhit.entryPoint().x();
+    auto entryY = simhit.entryPoint().y();
+    auto entryZ = simhit.entryPoint().z();
+    auto exitX = simhit.exitPoint().x();
+    auto exitY = simhit.exitPoint().y();
+    auto exitZ = simhit.exitPoint().z();
+
     auto path = simhit.entryPoint()-simhit.exitPoint();
     auto length = sqrt(pow(path.x(), 2) + pow(path.y(), 2) + pow(path.z(), 2)); // cm
     auto width = sqrt(pow(path.x(), 2) + pow(path.y(), 2)); // cm
     auto height = path.z(); // cm [sensitive detector is at 0.2975 cm]
     auto exp_cls = width/pitch+1; // width/strip pitch and (+1) for histogram matching
 
+    if (exp_cls > 4 && (pid == 11 || pid == -11)) cout << "specific" << endl;
+    if (exp_cls > 80) cout << "huge: " << exp_cls << endl;
+    else cout << "here" << endl;
+    auto ieId = etapart->id();
+    cout << "pid: " << pid << ", prcs: " << process << ", trkid: " << trkid << endl;
+    cout << "re: " << ieId.region() << ", ch:" << ieId.chamber() << ", ie:" << ieId.ieta() << endl;
+    cout << "en. (" << simhit.entryPoint().x() << ", " << simhit.entryPoint().y() << ", " << simhit.entryPoint().z() << ")" << endl;
+    cout << "ex. (" << simhit.exitPoint().x() << ", " << simhit.exitPoint().y() << ", " << simhit.exitPoint().z() << ")" << endl;
+    cout << "eloss: " << eloss << ", momentum: " << pabs << endl;
+
+
     int count = 0;
-    int v = track2vertex(gemSimTrack, trkid);
-    int p = vertex2parent(gemSimVertex, v);
-    while (p != -1) {
-      count += 1;
-      v = track2vertex(gemSimTrack, p);
-      p = vertex2parent(gemSimVertex, v);
+    auto v = track2vertex(gemSimTrack, trkid);
+    cout << "v: " << v << endl;
+    auto p = vertex2parent(gemSimVertex, v);
+    cout << "p: " << p << endl;
+    int noVP;
+
+    if (p == -2){
+      for (const auto& simtrack : *gemSimTrack.product()) {
+        cout << "<In simtrack> " << "trkid: " << simtrack.trackId() << ", pid: " << simtrack.type() << ", vertidx: " << simtrack.vertIndex() << ", genpartidx: " << simtrack.genpartIndex() << endl;
+        cout << "<simtrk> " << "noV: " << simtrack.noVertex() << ", noG: " << simtrack.noGenpart() << endl;
+      }
+      for (const auto& simvertex : *gemSimVertex.product()) {
+        cout << "<In simvertex> " << "vertid: " << simvertex.vertexId() << ", prcs: " << simvertex.processType() << ", parentidx: " << simvertex.parentIndex() << endl;
+        cout << "<simvert> " << "noP: " << simvertex.noParent() << endl;
+      }
+      noVP = 1;
+    }
+    else if (p == -1 && process != 0){
+      for (const auto& simtrack : *gemSimTrack.product()) {
+        cout << "<In simtrack> " << "trkid: " << simtrack.trackId() << ", pid: " << simtrack.type() << ", vertidx: " << simtrack.vertIndex() << ", genpartidx: " << simtrack.genpartIndex() << endl;
+        cout << "<simtrk> " << "noV: " << simtrack.noVertex() << ", noG: " << simtrack.noGenpart() << endl;
+      }
+      for (const auto& simvertex : *gemSimVertex.product()) {
+        cout << "<In simvertex> " << "vertid: " << simvertex.vertexId() << ", prcs: " << simvertex.processType() << ", parentidx: " << simvertex.parentIndex() << endl;
+        cout << "<simvert> " << "noP: " << simvertex.noParent() << endl;
+      }
+      noVP = 2;
+    }
+    else if (p == -1 && process == 0) noVP = 3;
+    else noVP = 4;
+
+    while (1) {
+      if (p != -2) {
+        // if (count == 0) v = track2vertex(gemSimTrack, trkid);
+        // else v = track2vertex(gemSimTrack, p);
+        v = track2vertex(gemSimTrack, p);
+        p = vertex2parent(gemSimVertex, v);
+        count += 1;
+      }
+      else break;
     }
     b_SimNVert = count;
+    if (exp_cls > 4 && (pid == 11 || pid == -11)) cout << "specific end" << endl;
+    if (exp_cls > 80) cout << "huge end" << endl;
+    else cout << "here end" << endl;
+
 
 
     // for (const auto& simtrack : *gemSimTrack.product()) {
@@ -433,10 +381,17 @@ GEMHitAnalyzer_HitForSim::analyze(const edm::Event& iEvent, const edm::EventSetu
     b_SimHitProcess = process;
     b_SimHitEloss = eloss;
     b_SimHitP = pabs;
+    b_SimHitEntryX = entryX;
+    b_SimHitEntryY = entryY;
+    b_SimHitEntryZ = entryZ;
+    b_SimHitExitX = exitX;
+    b_SimHitExitY = exitY;
+    b_SimHitExitZ = exitZ;
     b_SimHitLength = length;
     b_SimHitWidth = width;
     b_SimHitHeight = height;
     b_SimHitCls = exp_cls;
+    b_SimHitNoVP = noVP;
 
     // energy loss cut fo ionization minimum threshold 
     if (eloss*1E9 > 28.1) b_SimHitElosscut = 1;
@@ -472,10 +427,10 @@ GEMHitAnalyzer_HitForSim::analyze(const edm::Event& iEvent, const edm::EventSetu
   h_nEvents->Fill(1);
 }
 
-void GEMHitAnalyzer_HitForSim::beginJob(){}
-void GEMHitAnalyzer_HitForSim::endJob(){}
+void GEMMCSimhitAnalyzer::beginJob(){}
+void GEMMCSimhitAnalyzer::endJob(){}
 
-void GEMHitAnalyzer_HitForSim::beginRun(const edm::Run& run, const edm::EventSetup& iSetup) { 
+void GEMMCSimhitAnalyzer::beginRun(const edm::Run& run, const edm::EventSetup& iSetup) { 
   /* GEM Geometry */
   edm::ESHandle<GEMGeometry> hGEMGeom;
   hGEMGeom = iSetup.getHandle(hGEMGeomBeginRun_);
@@ -486,8 +441,7 @@ void GEMHitAnalyzer_HitForSim::beginRun(const edm::Run& run, const edm::EventSet
   h_nEvents = fs->make<TH1I>("nEvents", "The number of events", 2, 0, 2);
 
 }
-void GEMHitAnalyzer_HitForSim::endRun(edm::Run const&, edm::EventSetup const&){
+void GEMMCSimhitAnalyzer::endRun(edm::Run const&, edm::EventSetup const&){
 }
-                   
-//define this as a plug-in
-DEFINE_FWK_MODULE(GEMHitAnalyzer_HitForSim);
+
+DEFINE_FWK_MODULE(GEMMCSimhitAnalyzer);
